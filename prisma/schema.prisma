@@ -1,0 +1,346 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============ AUTH ============
+
+enum UserRole {
+  ADMIN
+  MECHANIC
+  VIEWER
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  role          UserRole  @default(MECHANIC)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts           Account[]
+  sessions           Session[]
+  maintenanceRecords MaintenanceRecord[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ============ CUSTOMERS ============
+
+enum CustomerStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model Customer {
+  id           String         @id @default(cuid())
+  name         String
+  phone        String?
+  email        String?
+  nif          String?
+  address      String?
+  notes        String?        @db.Text
+  status       CustomerStatus @default(ACTIVE)
+  discountRate Decimal?       @db.Decimal(5, 2)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  vehicles              Vehicle[]
+  quotes                Quote[]
+  maintenanceRecords    MaintenanceRecord[]
+  extractedInvoiceItems ExtractedInvoiceItem[]
+}
+
+// ============ VEHICLES ============
+
+enum FuelType {
+  GASOLINE
+  DIESEL
+  ELECTRIC
+  HYBRID
+  LPG
+  OTHER
+}
+
+model Vehicle {
+  id         String   @id @default(cuid())
+  plate      String   @unique
+  brand      String
+  model      String
+  year       Int?
+  vin        String?
+  mileage    Int?
+  fuelType   FuelType @default(GASOLINE)
+  notes      String?  @db.Text
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  quotes                Quote[]
+  maintenanceRecords    MaintenanceRecord[]
+  extractedInvoiceItems ExtractedInvoiceItem[]
+}
+
+// ============ STOCK ============
+
+enum StockStatus {
+  AVAILABLE
+  LOW
+  OUT_OF_STOCK
+}
+
+enum StockUnit {
+  UNIT
+  LITER
+  KG
+  METER
+  BOX
+  SET
+}
+
+model StockItem {
+  id          String      @id @default(cuid())
+  name        String
+  internalRef String?     @unique
+  supplierRef String?
+  category    String?
+  brand       String?
+  quantity    Decimal     @default(0) @db.Decimal(10, 3)
+  minQuantity Decimal     @default(0) @db.Decimal(10, 3)
+  unit        StockUnit   @default(UNIT)
+  costPrice     Decimal?    @db.Decimal(10, 2)
+  salePrice     Decimal?    @db.Decimal(10, 2)
+  discountPrice Decimal?    @db.Decimal(10, 2)
+  supplier      String?
+  location    String?
+  status      StockStatus @default(AVAILABLE)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  movements      StockMovement[]
+  quoteItems     QuoteItem[]
+  extractedItems ExtractedInvoiceItem[]
+}
+
+enum StockMovementType {
+  IN
+  OUT
+  ADJUSTMENT
+}
+
+model StockMovement {
+  id          String            @id @default(cuid())
+  stockItemId String
+  stockItem   StockItem         @relation(fields: [stockItemId], references: [id], onDelete: Cascade)
+  type        StockMovementType
+  quantity    Decimal           @db.Decimal(10, 3)
+  notes       String?
+  quoteId     String?
+  createdAt   DateTime          @default(now())
+
+  @@index([stockItemId])
+}
+
+// ============ QUOTES / ORÇAMENTOS ============
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  APPROVED
+  REJECTED
+  CONVERTED
+}
+
+model Quote {
+  id            String      @id @default(cuid())
+  number        String      @unique
+  customerId    String
+  customer      Customer    @relation(fields: [customerId], references: [id])
+  vehicleId     String?
+  vehicle       Vehicle?    @relation(fields: [vehicleId], references: [id])
+  status        QuoteStatus @default(DRAFT)
+  validUntil    DateTime?
+  taxRate       Decimal     @default(23) @db.Decimal(5, 2)
+  discount      Decimal     @default(0) @db.Decimal(10, 2)
+  laborHourRate Decimal?    @db.Decimal(10, 2)
+  subtotal      Decimal     @default(0) @db.Decimal(10, 2)
+  taxAmount     Decimal     @default(0) @db.Decimal(10, 2)
+  total         Decimal     @default(0) @db.Decimal(10, 2)
+  notes         String?     @db.Text
+  terms         String?     @db.Text
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  items                 QuoteItem[]
+  laborItems            LaborItem[]
+  maintenanceRecords    MaintenanceRecord[]
+  uploadedDocuments     UploadedDocument[]
+  extractedInvoiceItems ExtractedInvoiceItem[]
+}
+
+model QuoteItem {
+  id          String     @id @default(cuid())
+  quoteId     String
+  quote       Quote      @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  stockItemId String?
+  stockItem   StockItem? @relation(fields: [stockItemId], references: [id])
+  description   String
+  reference     String?
+  quantity      Decimal    @db.Decimal(10, 3)
+  unitPrice     Decimal    @db.Decimal(10, 2)
+  discountPct   Decimal    @default(0) @db.Decimal(5, 2)
+  taxRate       Decimal    @default(23) @db.Decimal(5, 2)
+  total         Decimal    @db.Decimal(10, 2)
+
+  @@index([quoteId])
+}
+
+model LaborItem {
+  id          String  @id @default(cuid())
+  quoteId     String
+  quote       Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  description String
+  hours       Decimal @db.Decimal(8, 2)
+  hourRate    Decimal @db.Decimal(10, 2)
+  total       Decimal @db.Decimal(10, 2)
+
+  @@index([quoteId])
+}
+
+// ============ MAINTENANCE RECORDS ============
+
+model MaintenanceRecord {
+  id           String    @id @default(cuid())
+  customerId   String
+  customer     Customer  @relation(fields: [customerId], references: [id])
+  vehicleId    String
+  vehicle      Vehicle   @relation(fields: [vehicleId], references: [id])
+  date         DateTime
+  mileage      Int?
+  description  String    @db.Text
+  laborHours   Decimal?  @db.Decimal(8, 2)
+  technicianId String?
+  technician   User?     @relation(fields: [technicianId], references: [id])
+  quoteId      String?
+  quote        Quote?    @relation(fields: [quoteId], references: [id])
+  notes        String?   @db.Text
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  extractedInvoiceItems ExtractedInvoiceItem[]
+  uploadedDocuments     UploadedDocument[]
+}
+
+// ============ WORKSHOP SETTINGS ============
+
+model WorkshopSettings {
+  id             String   @id @default(cuid())
+  name           String
+  address        String?
+  nif            String?
+  phone          String?
+  email          String?
+  logoUrl        String?
+  laborHourRate  Decimal  @default(50) @db.Decimal(10, 2)
+  defaultTaxRate Decimal  @default(23) @db.Decimal(5, 2)
+  quotePrefix    String   @default("ORC")
+  quoteCounter   Int      @default(1)
+  defaultTerms   String?  @db.Text
+  defaultNotes   String?  @db.Text
+  updatedAt      DateTime @updatedAt
+}
+
+// ============ UPLOADED DOCUMENTS ============
+
+model UploadedDocument {
+  id            String             @id @default(cuid())
+  name          String
+  url           String
+  mimeType      String
+  size          Int
+  quoteId       String?
+  quote         Quote?             @relation(fields: [quoteId], references: [id])
+  maintenanceId String?
+  maintenance   MaintenanceRecord? @relation(fields: [maintenanceId], references: [id])
+  uploadedAt    DateTime           @default(now())
+
+  extractedItems ExtractedInvoiceItem[]
+}
+
+// ============ EXTRACTED INVOICE ITEMS (OCR) ============
+
+enum InvoiceItemStatus {
+  UNASSIGNED
+  ASSIGNED
+  IGNORED
+}
+
+model ExtractedInvoiceItem {
+  id                  String             @id @default(cuid())
+  uploadedDocumentId  String
+  uploadedDocument    UploadedDocument   @relation(fields: [uploadedDocumentId], references: [id], onDelete: Cascade)
+  description         String
+  reference           String?
+  quantity            Decimal            @db.Decimal(10, 3)
+  unitPrice           Decimal            @db.Decimal(10, 2)
+  taxRate             Decimal?           @db.Decimal(5, 2)
+  total               Decimal            @db.Decimal(10, 2)
+  status              InvoiceItemStatus  @default(UNASSIGNED)
+  customerId          String?
+  customer            Customer?          @relation(fields: [customerId], references: [id])
+  vehicleId           String?
+  vehicle             Vehicle?           @relation(fields: [vehicleId], references: [id])
+  quoteId             String?
+  quote               Quote?             @relation(fields: [quoteId], references: [id])
+  maintenanceRecordId String?
+  maintenanceRecord   MaintenanceRecord? @relation(fields: [maintenanceRecordId], references: [id])
+  stockItemId         String?
+  stockItem           StockItem?         @relation(fields: [stockItemId], references: [id])
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@index([uploadedDocumentId])
+  @@index([status])
+}
