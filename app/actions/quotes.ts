@@ -14,6 +14,36 @@ async function requireAuth() {
   return session
 }
 
+export function formatQuoteNumber(prefix: string, counter: number): string {
+  return `${prefix}-${String(counter).padStart(5, "0")}`
+}
+
+export async function generateNextQuoteNumber(prefix: string): Promise<string> {
+  const normalizedPrefix = prefix.trim()
+
+  const lastQuote = await db.quote.findFirst({
+    where: {
+      number: {
+        startsWith: `${normalizedPrefix}-`,
+      },
+    },
+    orderBy: {
+      number: "desc",
+    },
+    select: {
+      number: true,
+    },
+  })
+
+  const lastCounter = lastQuote
+    ? Number(lastQuote.number.replace(`${normalizedPrefix}-`, ""))
+    : 0
+
+  const nextCounter = Number.isFinite(lastCounter) ? lastCounter + 1 : 1
+
+  return formatQuoteNumber(normalizedPrefix, nextCounter)
+}
+
 export async function createQuote(data: QuoteInput): Promise<ActionResult<{ id: string }>> {
   await requireAuth()
   const parsed = quoteSchema.safeParse(data)
@@ -21,8 +51,7 @@ export async function createQuote(data: QuoteInput): Promise<ActionResult<{ id: 
 
   const settings = await db.workshopSettings.findFirst()
   const prefix = settings?.quotePrefix ?? "ORC"
-  const counter = settings?.quoteCounter ?? 1
-  const number = generateQuoteNumber(prefix, counter)
+  const number = await generateNextQuoteNumber(prefix)
 
   const quote = await db.quote.create({
     data: {
