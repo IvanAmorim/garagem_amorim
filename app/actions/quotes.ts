@@ -14,7 +14,7 @@ async function requireAuth() {
   return session
 }
 
-export function formatQuoteNumber(prefix: string, counter: number): string {
+function formatQuoteNumber(prefix: string, counter: number): string {
   return `${prefix}-${String(counter).padStart(5, "0")}`
 }
 
@@ -67,13 +67,6 @@ export async function createQuote(data: QuoteInput): Promise<ActionResult<{ id: 
       terms: parsed.data.terms ?? settings?.defaultTerms,
     },
   })
-
-  if (settings) {
-    await db.workshopSettings.update({
-      where: { id: settings.id },
-      data: { quoteCounter: counter + 1 },
-    })
-  }
 
   revalidatePath("/orcamentos")
   return { success: true, data: { id: quote.id } }
