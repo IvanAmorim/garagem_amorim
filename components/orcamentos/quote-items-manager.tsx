@@ -48,7 +48,7 @@ interface StockItem {
   name: string
   internalRef: string | null | undefined
   salePrice: number | null
-  discountPrice: number | null
+  discountPrice?: number | null
   unit: string
   quantity: number
 }

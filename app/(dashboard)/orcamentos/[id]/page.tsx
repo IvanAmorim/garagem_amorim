@@ -107,11 +107,12 @@ export default async function OrcamentoDetailPage({ params }: { params: Promise<
           id: i.id,
           description: i.description,
           reference: i.reference,
-          quantity: decimalToNumber(i.quantity),
-          unitPrice: decimalToNumber(i.unitPrice),
-          taxRate: decimalToNumber(i.taxRate),
-          total: decimalToNumber(i.total),
-          stockItem: i.stockItem ? { id: i.stockItem.id, name: i.stockItem.name, unit: i.stockItem.unit } : null,
+          quantity: Number(i.quantity),
+          unitPrice: Number(i.unitPrice),
+          discountPct: Number(i.discountPct ?? 0),
+          taxRate: Number(i.taxRate),
+          total: Number(i.total),
+          stockItem: i.stockItem,
         }))}
         laborItems={quote.laborItems.map((i) => ({
           id: i.id,
@@ -124,7 +125,8 @@ export default async function OrcamentoDetailPage({ params }: { params: Promise<
           id: s.id,
           name: s.name,
           internalRef: s.internalRef,
-          salePrice: s.salePrice ? decimalToNumber(s.salePrice) : null,
+          salePrice: s.salePrice === null ? null : decimalToNumber(s.salePrice),
+          discountPrice: null,
           unit: s.unit,
           quantity: decimalToNumber(s.quantity),
         }))}
