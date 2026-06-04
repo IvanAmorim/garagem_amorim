@@ -55,10 +55,24 @@ export function MaintenanceForm({
   const [selectedCustomerId, setSelectedCustomerId] = useState(
     initialData?.customerId ?? defaultCustomerId ?? ""
   )
+  const [selectedVehicleId, setSelectedVehicleId] = useState(
+    initialData?.vehicleId ?? defaultVehicleId ?? ""
+  )
   const [createQuote, setCreateQuote] = useState(!isEdit)
+  const [linkedQuoteId, setLinkedQuoteId] = useState<string>(
+    initialData?.quoteId ?? "none"
+  )
 
-  const filteredVehicles = vehicles.filter((v) => !selectedCustomerId || v.customerId === selectedCustomerId)
-  const filteredQuotes = quotes.filter((q) => !selectedCustomerId || q.customerId === selectedCustomerId)
+  const filteredVehicles = vehicles.filter(
+    (v) => !selectedCustomerId || v.customerId === selectedCustomerId
+  )
+
+  // Filter quotes by customer and vehicle (quotes with no vehicle are shown for any vehicle)
+  const filteredQuotes = quotes.filter((q) => {
+    if (selectedCustomerId && q.customerId !== selectedCustomerId) return false
+    if (selectedVehicleId && q.vehicleId && q.vehicleId !== selectedVehicleId) return false
+    return true
+  })
 
   const today = new Date().toISOString().split("T")[0]
 
@@ -90,8 +104,13 @@ export function MaintenanceForm({
 
   const onSubmit = (data: MaintenanceInput) => {
     startTransition(async () => {
+      const resolvedQuoteId = linkedQuoteId !== "none" ? linkedQuoteId : undefined
+
       if (isEdit) {
-        const result = await updateMaintenance(initialData.id, data)
+        const result = await updateMaintenance(initialData.id, {
+          ...data,
+          quoteId: resolvedQuoteId,
+        })
         if (result.success) {
           toast({ title: "Manutenção atualizada" })
           router.push("/manutencoes")
@@ -100,7 +119,11 @@ export function MaintenanceForm({
           toast({ title: "Erro", description: result.error, variant: "destructive" })
         }
       } else {
-        const result = await createMaintenance({ ...data, createQuote })
+        const result = await createMaintenance({
+          ...data,
+          createQuote,
+          quoteId: createQuote ? undefined : resolvedQuoteId,
+        })
         if (result.success) {
           toast({ title: "Manutenção registada" })
           if (createQuote && result.data?.quoteId) {
@@ -126,7 +149,13 @@ export function MaintenanceForm({
               <Label>Cliente *</Label>
               <Select
                 defaultValue={initialData?.customerId ?? defaultCustomerId ?? ""}
-                onValueChange={(v) => { setValue("customerId", v); setSelectedCustomerId(v) }}
+                onValueChange={(v) => {
+                  setValue("customerId", v)
+                  setSelectedCustomerId(v)
+                  setValue("vehicleId", "")
+                  setSelectedVehicleId("")
+                  setLinkedQuoteId("none")
+                }}
               >
                 <SelectTrigger><SelectValue placeholder="Selecionar cliente" /></SelectTrigger>
                 <SelectContent>
@@ -140,7 +169,11 @@ export function MaintenanceForm({
               <Label>Veículo *</Label>
               <Select
                 defaultValue={initialData?.vehicleId ?? defaultVehicleId ?? ""}
-                onValueChange={(v) => setValue("vehicleId", v)}
+                onValueChange={(v) => {
+                  setValue("vehicleId", v)
+                  setSelectedVehicleId(v)
+                  setLinkedQuoteId("none")
+                }}
               >
                 <SelectTrigger><SelectValue placeholder="Selecionar veículo" /></SelectTrigger>
                 <SelectContent>
@@ -212,8 +245,8 @@ export function MaintenanceForm({
                 Orçamento Associado
               </Label>
               <Select
-                defaultValue={initialData.quoteId ?? "none"}
-                onValueChange={(v) => setValue("quoteId", v === "none" ? undefined : v)}
+                value={linkedQuoteId}
+                onValueChange={setLinkedQuoteId}
               >
                 <SelectTrigger><SelectValue placeholder="Sem orçamento" /></SelectTrigger>
                 <SelectContent>
@@ -223,12 +256,17 @@ export function MaintenanceForm({
                   ))}
                 </SelectContent>
               </Select>
+              {selectedCustomerId && filteredQuotes.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Sem orçamentos em aberto para este cliente{selectedVehicleId ? "/veículo" : ""}
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
       ) : (
         <Card className={createQuote ? "border-primary/40 bg-primary/5" : ""}>
-          <CardContent className="pt-4">
+          <CardContent className="pt-4 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <FileText className={`h-5 w-5 ${createQuote ? "text-primary" : "text-muted-foreground"}`} />
@@ -239,8 +277,45 @@ export function MaintenanceForm({
                   </p>
                 </div>
               </div>
-              <Switch checked={createQuote} onCheckedChange={setCreateQuote} />
+              <Switch
+                checked={createQuote}
+                onCheckedChange={(v) => {
+                  setCreateQuote(v)
+                  if (v) setLinkedQuoteId("none")
+                }}
+              />
             </div>
+
+            {!createQuote && (
+              <div className="space-y-2 pt-1 border-t">
+                <Label className="text-sm flex items-center gap-1.5">
+                  <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                  Associar a orçamento existente
+                  <span className="text-muted-foreground font-normal">(opcional)</span>
+                </Label>
+                <Select value={linkedQuoteId} onValueChange={setLinkedQuoteId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sem orçamento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sem orçamento</SelectItem>
+                    {filteredQuotes.map((q) => (
+                      <SelectItem key={q.id} value={q.id}>{q.number}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {!selectedCustomerId && (
+                  <p className="text-xs text-muted-foreground">
+                    Selecione um cliente para filtrar os orçamentos disponíveis
+                  </p>
+                )}
+                {selectedCustomerId && filteredQuotes.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Sem orçamentos em aberto (rascunho ou em execução) para este cliente{selectedVehicleId ? "/veículo" : ""}
+                  </p>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -255,4 +330,3 @@ export function MaintenanceForm({
     </form>
   )
 }
-
