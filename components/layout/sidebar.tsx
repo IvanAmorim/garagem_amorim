@@ -46,7 +46,7 @@ export function Sidebar() {
         </div>
         {!collapsed && (
           <div>
-            <p className="font-bold text-sm leading-tight">Oficina</p>
+            <p className="font-bold text-sm leading-tight">Garagem Amorim</p>
             <p className="text-xs text-white/70">Mecânica</p>
           </div>
         )}

@@ -4,7 +4,6 @@ import { useActionState } from "react"
 import { loginUser } from "@/app/actions/auth"
 import { Eye, EyeOff, Loader2 } from "lucide-react"
 import { useState } from "react"
-import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -74,12 +73,6 @@ export function LoginForm() {
         </Button>
       </form>
 
-      <p className="text-center text-sm text-muted-foreground mt-6">
-        Sem conta?{" "}
-        <Link href="/register" className="text-primary font-medium hover:underline">
-          Registar
-        </Link>
-      </p>
     </div>
   )
 }

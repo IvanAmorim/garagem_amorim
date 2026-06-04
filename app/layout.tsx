@@ -11,7 +11,7 @@ const geist = Geist({
 
 export const metadata: Metadata = {
   title: {
-    default: "Oficina Mecânica",
+    default: "Garagem Amorim",
     template: "%s | Oficina Mecânica",
   },
   description: "Sistema de gestão para oficina mecânica",
