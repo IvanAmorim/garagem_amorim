@@ -9,6 +9,7 @@ import Link from "next/link"
 import { formatCurrency, formatDate, getQuoteStatusLabel, decimalToNumber } from "@/lib/utils"
 import type { Metadata } from "next"
 import { QuoteItemsManager } from "@/components/orcamentos/quote-items-manager"
+import { DeleteQuoteButton } from "@/components/orcamentos/delete-quote-button"
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
@@ -67,6 +68,7 @@ export default async function OrcamentoDetailPage({ params }: { params: Promise<
               <span className="hidden sm:inline">PDF</span>
             </a>
           </Button>
+          <DeleteQuoteButton quoteId={id} quoteNumber={quote.number} />
           <Button asChild size="sm">
             <Link href={`/orcamentos/${id}/editar`}>
               <Edit className="h-4 w-4" />

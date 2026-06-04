@@ -7,6 +7,7 @@ import { Plus, Search, Wrench, Gauge, Calendar, User, Package, FileText, StickyN
 import Link from "next/link"
 import { formatDate, formatCurrency, decimalToNumber, getQuoteStatusLabel } from "@/lib/utils"
 import type { Metadata } from "next"
+import { DeleteMaintenanceButton } from "@/components/manutencoes/delete-maintenance-button"
 
 export const metadata: Metadata = { title: "Manutenções" }
 
@@ -92,6 +93,7 @@ export default async function ManutencoesPage({
                           <Edit className="h-3.5 w-3.5" />
                         </Link>
                       </Button>
+                      <DeleteMaintenanceButton id={record.id} description={record.description} />
                     </div>
                   </div>
 
