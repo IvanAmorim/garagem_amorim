@@ -30,6 +30,8 @@ export const vehicleSchema = z.object({
   vin: z.string().optional(),
   mileage: z.coerce.number().int().min(0).optional(),
   fuelType: z.enum(["GASOLINE", "DIESEL", "ELECTRIC", "HYBRID", "LPG", "OTHER"]).default("GASOLINE"),
+  transmissionType: z.enum(["MANUAL", "AUTOMATIC", "CVT", "OTHER"]).optional(),
+  engineCode: z.string().optional(),
   notes: z.string().optional(),
   customerId: z.string().min(1, "Cliente obrigatório"),
 })

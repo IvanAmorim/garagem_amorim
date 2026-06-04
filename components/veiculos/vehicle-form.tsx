@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { vehicleSchema, type VehicleInput } from "@/lib/validations"
 import { createVehicle, updateVehicle } from "@/app/actions/vehicles"
 import { toast } from "@/hooks/use-toast"
+
 interface VehicleData {
   id: string
   plate: string
@@ -23,6 +24,8 @@ interface VehicleData {
   vin: string | null
   mileage: number | null
   fuelType: "GASOLINE" | "DIESEL" | "ELECTRIC" | "HYBRID" | "LPG" | "OTHER"
+  transmissionType: "MANUAL" | "AUTOMATIC" | "CVT" | "OTHER" | null
+  engineCode: string | null
   notes: string | null
   customerId: string
 }
@@ -40,6 +43,13 @@ const fuelTypes = [
   { value: "HYBRID", label: "Híbrido" },
   { value: "LPG", label: "GPL" },
   { value: "OTHER", label: "Outro" },
+]
+
+const transmissionTypes = [
+  { value: "MANUAL", label: "Manual" },
+  { value: "AUTOMATIC", label: "Automática" },
+  { value: "CVT", label: "CVT" },
+  { value: "OTHER", label: "Outra" },
 ]
 
 export function VehicleForm({ vehicle, customers, defaultCustomerId }: VehicleFormProps) {
@@ -63,6 +73,8 @@ export function VehicleForm({ vehicle, customers, defaultCustomerId }: VehicleFo
           vin: vehicle.vin ?? "",
           mileage: vehicle.mileage ?? undefined,
           fuelType: vehicle.fuelType,
+          transmissionType: vehicle.transmissionType ?? undefined,
+          engineCode: vehicle.engineCode ?? "",
           notes: vehicle.notes ?? "",
           customerId: vehicle.customerId,
         }
@@ -155,6 +167,28 @@ export function VehicleForm({ vehicle, customers, defaultCustomerId }: VehicleFo
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Caixa de Velocidades</Label>
+              <Select
+                defaultValue={vehicle?.transmissionType ?? ""}
+                onValueChange={(v) => setValue("transmissionType", v === "" ? undefined : v as VehicleInput["transmissionType"])}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Não especificado" />
+                </SelectTrigger>
+                <SelectContent>
+                  {transmissionTypes.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="engineCode">Código de Motor</Label>
+              <Input id="engineCode" placeholder="ex: 1NZ-FE" {...register("engineCode")} />
             </div>
 
             <div className="space-y-2">

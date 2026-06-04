@@ -255,6 +255,29 @@ export async function addLaborItem(quoteId: string, data: LaborItemInput): Promi
   return { success: true, data: undefined }
 }
 
+export async function updateLaborItem(
+  itemId: string,
+  quoteId: string,
+  data: LaborItemInput
+): Promise<ActionResult> {
+  await requireAuth()
+  const parsed = laborItemSchema.safeParse(data)
+  if (!parsed.success) return { success: false, error: "Dados inválidos" }
+
+  await db.laborItem.update({
+    where: { id: itemId },
+    data: {
+      description: parsed.data.description,
+      hours: parsed.data.hours,
+      hourRate: parsed.data.hourRate,
+      total: parsed.data.hours * parsed.data.hourRate,
+    },
+  })
+  await recalculateQuoteTotals(quoteId)
+  revalidatePath(`/orcamentos/${quoteId}`)
+  return { success: true, data: undefined }
+}
+
 export async function removeLaborItem(itemId: string, quoteId: string): Promise<ActionResult> {
   await requireAuth()
   await db.laborItem.delete({ where: { id: itemId } })

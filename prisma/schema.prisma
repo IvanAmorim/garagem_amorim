@@ -103,17 +103,26 @@ enum FuelType {
   OTHER
 }
 
+enum TransmissionType {
+  MANUAL
+  AUTOMATIC
+  CVT
+  OTHER
+}
+
 model Vehicle {
-  id         String   @id @default(cuid())
-  plate      String   @unique
-  brand      String
-  model      String
-  year       Int?
-  vin        String?
-  mileage    Int?
-  fuelType   FuelType @default(GASOLINE)
-  notes      String?  @db.Text
-  customerId String
+  id               String            @id @default(cuid())
+  plate            String            @unique
+  brand            String
+  model            String
+  year             Int?
+  vin              String?
+  mileage          Int?
+  fuelType         FuelType          @default(GASOLINE)
+  transmissionType TransmissionType?
+  engineCode       String?
+  notes            String?           @db.Text
+  customerId       String
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

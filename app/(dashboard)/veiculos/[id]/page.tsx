@@ -4,9 +4,9 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Edit, Plus, FileText, Wrench, Gauge, Hash, Fuel, User, Package, StickyNote } from "lucide-react"
+import { ArrowLeft, Edit, Plus, FileText, Wrench, Gauge, Hash, Fuel, User, Package, StickyNote, Settings2, Cpu } from "lucide-react"
 import Link from "next/link"
-import { formatDate, formatCurrency, decimalToNumber, getFuelTypeLabel, getQuoteStatusLabel } from "@/lib/utils"
+import { formatDate, formatCurrency, decimalToNumber, getFuelTypeLabel, getQuoteStatusLabel, getTransmissionTypeLabel } from "@/lib/utils"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = { title: "Ficha do Veículo" }
@@ -46,11 +46,27 @@ export default async function VeiculoDetailPage({ params }: { params: Promise<{ 
             <span>{getFuelTypeLabel(vehicle.fuelType)}</span>
           </div>
         </Card>
+        {vehicle.transmissionType && (
+          <Card className="p-3">
+            <div className="flex items-center gap-2 text-sm">
+              <Settings2 className="h-4 w-4 text-muted-foreground" />
+              <span>{getTransmissionTypeLabel(vehicle.transmissionType)}</span>
+            </div>
+          </Card>
+        )}
         {vehicle.mileage && (
           <Card className="p-3">
             <div className="flex items-center gap-2 text-sm">
               <Gauge className="h-4 w-4 text-muted-foreground" />
               <span>{vehicle.mileage.toLocaleString("pt-PT")} km</span>
+            </div>
+          </Card>
+        )}
+        {vehicle.engineCode && (
+          <Card className="p-3">
+            <div className="flex items-center gap-2 text-sm">
+              <Cpu className="h-4 w-4 text-muted-foreground" />
+              <span className="font-mono text-sm">{vehicle.engineCode}</span>
             </div>
           </Card>
         )}

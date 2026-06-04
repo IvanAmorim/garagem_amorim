@@ -74,6 +74,16 @@ export function getFuelTypeLabel(type: string): string {
   return labels[type] ?? type
 }
 
+export function getTransmissionTypeLabel(type: string): string {
+  const labels: Record<string, string> = {
+    MANUAL: "Manual",
+    AUTOMATIC: "Automática",
+    CVT: "CVT",
+    OTHER: "Outra",
+  }
+  return labels[type] ?? type
+}
+
 export function getInvoiceItemStatusLabel(status: string): string {
   const labels: Record<string, string> = {
     UNASSIGNED: "Por Atribuir",

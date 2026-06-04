@@ -47,6 +47,8 @@ export default async function EditarVeiculoPage({ params }: { params: Promise<{ 
         vin: vehicle.vin,
         mileage: vehicle.mileage,
         fuelType: vehicle.fuelType,
+        transmissionType: vehicle.transmissionType ?? null,
+        engineCode: vehicle.engineCode ?? null,
         notes: vehicle.notes,
         customerId: vehicle.customerId,
       }} customers={customers} />
