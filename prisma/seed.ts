@@ -152,7 +152,7 @@ async function main() {
       number: "ORC-00001",
       customerId: customer1.id,
       vehicleId: vehicle1.id,
-      status: "APPROVED",
+      status: "COMPLETED",
       taxRate: 23,
       laborHourRate: 55,
       discount: 0,

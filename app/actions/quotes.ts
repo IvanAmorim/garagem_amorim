@@ -6,7 +6,6 @@ import { quoteSchema, quoteItemSchema, laborItemSchema } from "@/lib/validations
 import type { ActionResult } from "@/types"
 import type { QuoteInput, QuoteItemInput, LaborItemInput } from "@/lib/validations"
 import { auth } from "@/auth"
-import { generateQuoteNumber } from "@/lib/utils"
 
 async function requireAuth() {
   const session = await auth()
@@ -115,7 +114,12 @@ export async function deleteQuote(id: string): Promise<ActionResult> {
 
 export async function addQuoteItem(
   quoteId: string,
-  data: QuoteItemInput & { discountPct?: number }
+  data: QuoteItemInput & {
+    discountPct?: number
+    costPrice?: number
+    supplierInvoiceRef?: string
+    purchaseDate?: string
+  }
 ): Promise<ActionResult> {
   await requireAuth()
   const parsed = quoteItemSchema.safeParse(data)
@@ -168,9 +172,12 @@ export async function addQuoteItem(
       reference: parsed.data.reference,
       quantity: parsed.data.quantity,
       unitPrice: parsed.data.unitPrice,
+      costPrice: data.costPrice ?? null,
       discountPct,
       taxRate: parsed.data.taxRate,
       total,
+      supplierInvoiceRef: data.supplierInvoiceRef || null,
+      purchaseDate: data.purchaseDate ? new Date(data.purchaseDate) : null,
     },
   })
 

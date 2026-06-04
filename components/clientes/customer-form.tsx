@@ -14,10 +14,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { customerSchema, type CustomerInput } from "@/lib/validations"
 import { createCustomer, updateCustomer } from "@/app/actions/customers"
 import { toast } from "@/hooks/use-toast"
-import type { Customer } from "@/types"
+interface CustomerData {
+  id: string
+  name: string
+  phone: string | null
+  email: string | null
+  nif: string | null
+  address: string | null
+  notes: string | null
+  status: "ACTIVE" | "INACTIVE"
+}
 
 interface CustomerFormProps {
-  customer?: Customer
+  customer?: CustomerData
 }
 
 export function CustomerForm({ customer }: CustomerFormProps) {

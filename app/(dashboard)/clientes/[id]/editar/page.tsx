@@ -24,7 +24,16 @@ export default async function EditarClientePage({ params }: { params: Promise<{ 
           <p className="text-sm text-muted-foreground">{customer.name}</p>
         </div>
       </div>
-      <CustomerForm customer={customer} />
+      <CustomerForm customer={{
+        id: customer.id,
+        name: customer.name,
+        phone: customer.phone,
+        email: customer.email,
+        nif: customer.nif,
+        address: customer.address,
+        notes: customer.notes,
+        status: customer.status,
+      }} />
     </div>
   )
 }

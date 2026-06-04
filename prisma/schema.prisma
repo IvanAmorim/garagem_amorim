@@ -187,10 +187,9 @@ model StockMovement {
 
 enum QuoteStatus {
   DRAFT
-  SENT
-  APPROVED
-  REJECTED
-  CONVERTED
+  IN_PROGRESS
+  COMPLETED
+  PAID
 }
 
 model Quote {
@@ -226,13 +225,22 @@ model QuoteItem {
   quote       Quote      @relation(fields: [quoteId], references: [id], onDelete: Cascade)
   stockItemId String?
   stockItem   StockItem? @relation(fields: [stockItemId], references: [id])
-  description   String
-  reference     String?
-  quantity      Decimal    @db.Decimal(10, 3)
-  unitPrice     Decimal    @db.Decimal(10, 2)
-  discountPct   Decimal    @default(0) @db.Decimal(5, 2)
-  taxRate       Decimal    @default(23) @db.Decimal(5, 2)
-  total         Decimal    @db.Decimal(10, 2)
+  description              String
+  reference                String?
+  quantity                 Decimal    @db.Decimal(10, 3)
+  unitPrice                Decimal    @db.Decimal(10, 2)
+  costPrice                Decimal?   @db.Decimal(10, 2)
+  purchaseUnitPrice        Decimal?   @db.Decimal(10, 2)
+  customerDiscountApplied  Boolean    @default(false)
+  discountPct              Decimal    @default(0) @db.Decimal(5, 2)
+  taxRate                  Decimal    @default(23) @db.Decimal(5, 2)
+  total                    Decimal    @db.Decimal(10, 2)
+  supplierInvoiceRef       String?
+  purchaseDate             DateTime?
+  uploadedDocumentId       String?
+  uploadedDocument         UploadedDocument?     @relation("QuoteItemDocument", fields: [uploadedDocumentId], references: [id])
+  extractedInvoiceItemId   String?               @unique
+  extractedInvoiceItem     ExtractedInvoiceItem? @relation(fields: [extractedInvoiceItemId], references: [id])
 
   @@index([quoteId])
 }
@@ -304,9 +312,12 @@ model UploadedDocument {
   quote         Quote?             @relation(fields: [quoteId], references: [id])
   maintenanceId String?
   maintenance   MaintenanceRecord? @relation(fields: [maintenanceId], references: [id])
+  invoiceRef    String?
+  invoiceDate   DateTime?
   uploadedAt    DateTime           @default(now())
 
   extractedItems ExtractedInvoiceItem[]
+  quoteItems     QuoteItem[]            @relation("QuoteItemDocument")
 }
 
 // ============ EXTRACTED INVOICE ITEMS (OCR) ============
@@ -325,8 +336,12 @@ model ExtractedInvoiceItem {
   reference           String?
   quantity            Decimal            @db.Decimal(10, 3)
   unitPrice           Decimal            @db.Decimal(10, 2)
+  supplierDiscountPct Decimal?           @db.Decimal(5, 2)
+  purchaseUnitPrice   Decimal?           @db.Decimal(10, 2)
   taxRate             Decimal?           @db.Decimal(5, 2)
   total               Decimal            @db.Decimal(10, 2)
+  needsReview         Boolean            @default(false)
+  reviewReason        String?
   status              InvoiceItemStatus  @default(UNASSIGNED)
   customerId          String?
   customer            Customer?          @relation(fields: [customerId], references: [id])
@@ -340,6 +355,8 @@ model ExtractedInvoiceItem {
   stockItem           StockItem?         @relation(fields: [stockItemId], references: [id])
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
+
+  quoteItem           QuoteItem?
 
   @@index([uploadedDocumentId])
   @@index([status])

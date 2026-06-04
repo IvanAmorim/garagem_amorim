@@ -6,6 +6,13 @@ import autoTable from "jspdf-autotable"
 import { format } from "date-fns"
 import { pt } from "date-fns/locale"
 
+const STATUS_TITLE: Record<string, string> = {
+  DRAFT: "ORÇAMENTO",
+  IN_PROGRESS: "FOLHA DE SERVIÇO",
+  COMPLETED: "FOLHA DE SERVIÇO",
+  PAID: "FATURA",
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -41,6 +48,8 @@ export async function GET(
   const formatNum = (n: number | string | unknown) =>
     new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(Number(n))
 
+  const docTitle = STATUS_TITLE[quote.status] ?? "ORÇAMENTO"
+
   // ── Header ──────────────────────────────────────────────────────────────
   doc.setFillColor(30, 58, 95)
   doc.rect(0, 0, pageWidth, 35, "F")
@@ -56,10 +65,10 @@ export async function GET(
   if (settings?.nif) doc.text(`NIF: ${settings.nif}`, margin, 27)
   if (settings?.phone) doc.text(settings.phone, margin, 33)
 
-  // Quote number
+  // Document title + number
   doc.setFontSize(16)
   doc.setFont("helvetica", "bold")
-  doc.text(`ORÇAMENTO`, pageWidth - margin, 14, { align: "right" })
+  doc.text(docTitle, pageWidth - margin, 14, { align: "right" })
   doc.setFontSize(11)
   doc.text(quote.number, pageWidth - margin, 22, { align: "right" })
 
@@ -111,18 +120,21 @@ export async function GET(
     autoTable(doc, {
       startY: currentY,
       margin: { left: margin, right: margin },
-      head: [["Descrição", "Ref.", "Qtd.", "P. Unit.", "IVA", "Total"]],
-      body: quote.items.map((item) => [
-        item.description,
-        item.reference ?? "",
-        String(Number(item.quantity)),
-        formatNum(item.unitPrice),
-        `${Number(item.taxRate)}%`,
-        formatNum(item.total),
-      ]),
+      head: [["Descrição", "Qtd.", "P. Unit.", "IVA", "Total"]],
+      body: quote.items.map((item) => {
+        const effectiveUnitPrice = Number(item.unitPrice) * (1 - Number(item.discountPct) / 100)
+        const itemTotal = Number(item.quantity) * effectiveUnitPrice * (1 + Number(item.taxRate) / 100)
+        return [
+          item.description,
+          String(Number(item.quantity)),
+          formatNum(effectiveUnitPrice),
+          `${Number(item.taxRate)}%`,
+          formatNum(itemTotal),
+        ]
+      }),
       headStyles: { fillColor: [30, 58, 95], textColor: 255, fontSize: 9 },
       bodyStyles: { fontSize: 9, textColor: [60, 60, 60] },
-      columnStyles: { 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" }, 5: { halign: "right" } },
+      columnStyles: { 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" } },
       theme: "striped",
       alternateRowStyles: { fillColor: [245, 247, 250] },
     })
@@ -163,8 +175,14 @@ export async function GET(
   const valueX = pageWidth - margin
 
   const laborTotal = quote.laborItems.reduce((acc, i) => acc + Number(i.total), 0)
-  const itemsSubtotal = quote.items.reduce((acc, i) => acc + Number(i.quantity) * Number(i.unitPrice), 0)
-  const itemsTax = quote.items.reduce((acc, i) => acc + Number(i.quantity) * Number(i.unitPrice) * (Number(i.taxRate) / 100), 0)
+  const itemsSubtotal = quote.items.reduce((acc, i) => {
+    const effectivePrice = Number(i.unitPrice) * (1 - Number(i.discountPct) / 100)
+    return acc + Number(i.quantity) * effectivePrice
+  }, 0)
+  const itemsTax = quote.items.reduce((acc, i) => {
+    const effectivePrice = Number(i.unitPrice) * (1 - Number(i.discountPct) / 100)
+    return acc + Number(i.quantity) * effectivePrice * (Number(i.taxRate) / 100)
+  }, 0)
   const discount = Number(quote.discount)
 
   doc.setFontSize(9)
@@ -243,7 +261,7 @@ export async function GET(
   return new NextResponse(pdfBuffer, {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="orcamento-${quote.number}.pdf"`,
+      "Content-Disposition": `attachment; filename="${docTitle.toLowerCase().replace(/ /g, "-")}-${quote.number}.pdf"`,
     },
   })
 }

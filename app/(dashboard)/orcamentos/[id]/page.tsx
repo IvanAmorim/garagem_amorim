@@ -2,9 +2,9 @@ import { getQuote } from "@/app/actions/quotes"
 import { notFound } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, Edit, Download, Plus, Wrench, Package, Scan } from "lucide-react"
+import { ArrowLeft, Edit, Download, Scan } from "lucide-react"
 import Link from "next/link"
 import { formatCurrency, formatDate, getQuoteStatusLabel, decimalToNumber } from "@/lib/utils"
 import type { Metadata } from "next"
@@ -17,10 +17,9 @@ export const metadata: Metadata = { title: "Orçamento" }
 
 const statusVariant = {
   DRAFT: "secondary" as const,
-  SENT: "warning" as const,
-  APPROVED: "success" as const,
-  REJECTED: "destructive" as const,
-  CONVERTED: "default" as const,
+  IN_PROGRESS: "warning" as const,
+  COMPLETED: "success" as const,
+  PAID: "default" as const,
 }
 
 export default async function OrcamentoDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -113,6 +112,9 @@ export default async function OrcamentoDetailPage({ params }: { params: Promise<
           taxRate: Number(i.taxRate),
           total: Number(i.total),
           stockItem: i.stockItem,
+          customerDiscountApplied: i.customerDiscountApplied,
+          purchaseUnitPrice: i.purchaseUnitPrice != null ? Number(i.purchaseUnitPrice) : null,
+          supplierInvoiceRef: i.supplierInvoiceRef,
         }))}
         laborItems={quote.laborItems.map((i) => ({
           id: i.id,

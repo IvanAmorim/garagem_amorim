@@ -24,7 +24,21 @@ export default async function EditarStockPage({ params }: { params: Promise<{ id
           <p className="text-sm text-muted-foreground">{item.name}</p>
         </div>
       </div>
-      <StockForm item={item} />
+      <StockForm item={{
+        id: item.id,
+        name: item.name,
+        internalRef: item.internalRef,
+        supplierRef: item.supplierRef,
+        category: item.category,
+        brand: item.brand,
+        quantity: Number(item.quantity),
+        minQuantity: Number(item.minQuantity),
+        unit: item.unit,
+        costPrice: item.costPrice != null ? Number(item.costPrice) : null,
+        salePrice: item.salePrice != null ? Number(item.salePrice) : null,
+        supplier: item.supplier,
+        location: item.location,
+      }} />
     </div>
   )
 }

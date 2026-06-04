@@ -13,11 +13,24 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { stockItemSchema, type StockItemInput } from "@/lib/validations"
 import { createStockItem, updateStockItem } from "@/app/actions/stock"
 import { toast } from "@/hooks/use-toast"
-import type { StockItem } from "@/types"
-import { decimalToNumber } from "@/lib/utils"
+interface StockData {
+  id: string
+  name: string
+  internalRef: string | null
+  supplierRef: string | null
+  category: string | null
+  brand: string | null
+  quantity: number
+  minQuantity: number
+  unit: "UNIT" | "LITER" | "KG" | "METER" | "BOX" | "SET"
+  costPrice: number | null
+  salePrice: number | null
+  supplier: string | null
+  location: string | null
+}
 
 interface StockFormProps {
-  item?: StockItem
+  item?: StockData
 }
 
 const units = [
@@ -48,11 +61,11 @@ export function StockForm({ item }: StockFormProps) {
           supplierRef: item.supplierRef ?? "",
           category: item.category ?? "",
           brand: item.brand ?? "",
-          quantity: decimalToNumber(item.quantity),
-          minQuantity: decimalToNumber(item.minQuantity),
+          quantity: item.quantity,
+          minQuantity: item.minQuantity,
           unit: item.unit,
-          costPrice: item.costPrice ? decimalToNumber(item.costPrice) : undefined,
-          salePrice: item.salePrice ? decimalToNumber(item.salePrice) : undefined,
+          costPrice: item.costPrice ?? undefined,
+          salePrice: item.salePrice ?? undefined,
           supplier: item.supplier ?? "",
           location: item.location ?? "",
         }

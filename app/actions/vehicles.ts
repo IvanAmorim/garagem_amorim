@@ -77,8 +77,19 @@ export async function getVehicle(id: string) {
       },
       maintenanceRecords: {
         orderBy: { date: "desc" },
-        take: 10,
-        include: { technician: { select: { name: true } } },
+        take: 20,
+        include: {
+          technician: { select: { name: true } },
+          quote: {
+            select: {
+              id: true,
+              number: true,
+              status: true,
+              items: { select: { description: true, quantity: true, unitPrice: true, discountPct: true } },
+              laborItems: { select: { description: true, hours: true, total: true } },
+            },
+          },
+        },
       },
     },
   })

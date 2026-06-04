@@ -74,7 +74,7 @@ export const laborItemSchema = z.object({
 export const quoteSchema = z.object({
   customerId: z.string().min(1, "Cliente obrigatório"),
   vehicleId: z.string().optional(),
-  status: z.enum(["DRAFT", "SENT", "APPROVED", "REJECTED", "CONVERTED"]).default("DRAFT"),
+  status: z.enum(["DRAFT", "IN_PROGRESS", "COMPLETED", "PAID"]).default("DRAFT"),
   validUntil: z.string().optional(),
   taxRate: z.coerce.number().min(0).max(100).default(23),
   discount: z.coerce.number().min(0).default(0),
@@ -110,7 +110,10 @@ export const workshopSettingsSchema = z.object({
 })
 
 export const assignInvoiceItemSchema = z.object({
-  itemIds: z.array(z.string()).min(1, "Selecione pelo menos um item"),
+  items: z.array(z.object({
+    id: z.string(),
+    customerDiscountApplied: z.boolean().default(false),
+  })).min(1, "Selecione pelo menos um item"),
   customerId: z.string().optional(),
   vehicleId: z.string().optional(),
   quoteId: z.string().optional(),

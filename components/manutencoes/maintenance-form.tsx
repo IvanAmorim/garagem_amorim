@@ -13,8 +13,21 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { maintenanceSchema, type MaintenanceInput } from "@/lib/validations"
-import { createMaintenance } from "@/app/actions/maintenance"
+import { createMaintenance, updateMaintenance } from "@/app/actions/maintenance"
 import { toast } from "@/hooks/use-toast"
+
+interface InitialData {
+  id: string
+  customerId: string
+  vehicleId: string
+  date: Date
+  mileage: number | null
+  description: string
+  laborHours: number | null
+  technicianId: string | null
+  quoteId: string | null
+  notes: string | null
+}
 
 interface MaintenanceFormProps {
   customers: { id: string; name: string }[]
@@ -23,6 +36,7 @@ interface MaintenanceFormProps {
   quotes: { id: string; number: string; customerId: string; vehicleId: string | null }[]
   defaultCustomerId?: string
   defaultVehicleId?: string
+  initialData?: InitialData
 }
 
 export function MaintenanceForm({
@@ -32,11 +46,16 @@ export function MaintenanceForm({
   quotes,
   defaultCustomerId,
   defaultVehicleId,
+  initialData,
 }: MaintenanceFormProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  const [selectedCustomerId, setSelectedCustomerId] = useState(defaultCustomerId ?? "")
-  const [createQuote, setCreateQuote] = useState(true)
+  const isEdit = !!initialData
+
+  const [selectedCustomerId, setSelectedCustomerId] = useState(
+    initialData?.customerId ?? defaultCustomerId ?? ""
+  )
+  const [createQuote, setCreateQuote] = useState(!isEdit)
 
   const filteredVehicles = vehicles.filter((v) => !selectedCustomerId || v.customerId === selectedCustomerId)
   const filteredQuotes = quotes.filter((q) => !selectedCustomerId || q.customerId === selectedCustomerId)
@@ -50,26 +69,49 @@ export function MaintenanceForm({
     formState: { errors },
   } = useForm<MaintenanceInput>({
     resolver: zodResolver(maintenanceSchema) as never,
-    defaultValues: {
-      customerId: defaultCustomerId ?? "",
-      vehicleId: defaultVehicleId ?? "",
-      date: today,
-    },
+    defaultValues: isEdit
+      ? {
+          customerId: initialData.customerId,
+          vehicleId: initialData.vehicleId,
+          date: new Date(initialData.date).toISOString().split("T")[0],
+          mileage: initialData.mileage ?? undefined,
+          description: initialData.description,
+          laborHours: initialData.laborHours ?? undefined,
+          technicianId: initialData.technicianId ?? undefined,
+          quoteId: initialData.quoteId ?? undefined,
+          notes: initialData.notes ?? "",
+        }
+      : {
+          customerId: defaultCustomerId ?? "",
+          vehicleId: defaultVehicleId ?? "",
+          date: today,
+        },
   })
 
   const onSubmit = (data: MaintenanceInput) => {
     startTransition(async () => {
-      const result = await createMaintenance({ ...data, createQuote })
-      if (result.success) {
-        toast({ title: "Manutenção registada" })
-        if (createQuote && result.data?.quoteId) {
-          toast({ title: "Orçamento criado automaticamente", description: "A abrir o orçamento..." })
-          router.push(`/orcamentos/${result.data.quoteId}`)
-        } else {
+      if (isEdit) {
+        const result = await updateMaintenance(initialData.id, data)
+        if (result.success) {
+          toast({ title: "Manutenção atualizada" })
           router.push("/manutencoes")
+          router.refresh()
+        } else {
+          toast({ title: "Erro", description: result.error, variant: "destructive" })
         }
       } else {
-        toast({ title: "Erro", description: result.error, variant: "destructive" })
+        const result = await createMaintenance({ ...data, createQuote })
+        if (result.success) {
+          toast({ title: "Manutenção registada" })
+          if (createQuote && result.data?.quoteId) {
+            toast({ title: "Orçamento criado automaticamente", description: "A abrir o orçamento..." })
+            router.push(`/orcamentos/${result.data.quoteId}`)
+          } else {
+            router.push("/manutencoes")
+          }
+        } else {
+          toast({ title: "Erro", description: result.error, variant: "destructive" })
+        }
       }
     })
   }
@@ -83,7 +125,7 @@ export function MaintenanceForm({
             <div className="space-y-2">
               <Label>Cliente *</Label>
               <Select
-                defaultValue={defaultCustomerId ?? ""}
+                defaultValue={initialData?.customerId ?? defaultCustomerId ?? ""}
                 onValueChange={(v) => { setValue("customerId", v); setSelectedCustomerId(v) }}
               >
                 <SelectTrigger><SelectValue placeholder="Selecionar cliente" /></SelectTrigger>
@@ -97,7 +139,7 @@ export function MaintenanceForm({
             <div className="space-y-2">
               <Label>Veículo *</Label>
               <Select
-                defaultValue={defaultVehicleId ?? ""}
+                defaultValue={initialData?.vehicleId ?? defaultVehicleId ?? ""}
                 onValueChange={(v) => setValue("vehicleId", v)}
               >
                 <SelectTrigger><SelectValue placeholder="Selecionar veículo" /></SelectTrigger>
@@ -123,7 +165,10 @@ export function MaintenanceForm({
 
             <div className="space-y-2">
               <Label>Técnico Responsável</Label>
-              <Select onValueChange={(v) => setValue("technicianId", v)}>
+              <Select
+                defaultValue={initialData?.technicianId ?? ""}
+                onValueChange={(v) => setValue("technicianId", v)}
+              >
                 <SelectTrigger><SelectValue placeholder="Selecionar técnico" /></SelectTrigger>
                 <SelectContent>
                   {technicians.map((t) => (
@@ -157,34 +202,57 @@ export function MaintenanceForm({
         </CardContent>
       </Card>
 
-      {/* Auto-create quote option */}
-      <Card className={createQuote ? "border-primary/40 bg-primary/5" : ""}>
-        <CardContent className="pt-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <FileText className={`h-5 w-5 ${createQuote ? "text-primary" : "text-muted-foreground"}`} />
-              <div>
-                <p className="text-sm font-medium">Criar orçamento automaticamente</p>
-                <p className="text-xs text-muted-foreground">
-                  Cria um orçamento em rascunho pré-preenchido com os dados desta manutenção
-                </p>
-              </div>
+      {/* Quote linkage */}
+      {isEdit ? (
+        <Card>
+          <CardContent className="pt-4">
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                Orçamento Associado
+              </Label>
+              <Select
+                defaultValue={initialData.quoteId ?? "none"}
+                onValueChange={(v) => setValue("quoteId", v === "none" ? undefined : v)}
+              >
+                <SelectTrigger><SelectValue placeholder="Sem orçamento" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sem orçamento</SelectItem>
+                  {filteredQuotes.map((q) => (
+                    <SelectItem key={q.id} value={q.id}>{q.number}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <Switch
-              checked={createQuote}
-              onCheckedChange={setCreateQuote}
-            />
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className={createQuote ? "border-primary/40 bg-primary/5" : ""}>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <FileText className={`h-5 w-5 ${createQuote ? "text-primary" : "text-muted-foreground"}`} />
+                <div>
+                  <p className="text-sm font-medium">Criar orçamento automaticamente</p>
+                  <p className="text-xs text-muted-foreground">
+                    Cria um orçamento em rascunho pré-preenchido com os dados desta manutenção
+                  </p>
+                </div>
+              </div>
+              <Switch checked={createQuote} onCheckedChange={setCreateQuote} />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex gap-3 justify-end">
         <Button type="button" variant="outline" onClick={() => router.back()}>Cancelar</Button>
         <Button type="submit" disabled={isPending}>
           {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          {createQuote ? "Registar e Criar Orçamento" : "Registar Manutenção"}
+          {isEdit ? "Guardar Alterações" : createQuote ? "Registar e Criar Orçamento" : "Registar Manutenção"}
         </Button>
       </div>
     </form>
   )
 }
+

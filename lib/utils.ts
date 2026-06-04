@@ -55,10 +55,9 @@ export function getStockStatusLabel(status: string): string {
 export function getQuoteStatusLabel(status: string): string {
   const labels: Record<string, string> = {
     DRAFT: "Rascunho",
-    SENT: "Enviado",
-    APPROVED: "Aprovado",
-    REJECTED: "Recusado",
-    CONVERTED: "Convertido",
+    IN_PROGRESS: "Em Execução",
+    COMPLETED: "Concluído",
+    PAID: "Pago",
   }
   return labels[status] ?? status
 }

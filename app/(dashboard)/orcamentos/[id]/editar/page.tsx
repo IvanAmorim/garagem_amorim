@@ -35,7 +35,22 @@ export default async function EditarOrcamentoPage({ params }: { params: Promise<
           <p className="text-sm text-muted-foreground">{quote.number}</p>
         </div>
       </div>
-      <QuoteEditForm quote={quote} customers={customers} vehicles={vehicles} />
+      <QuoteEditForm
+    quote={{
+      id: quote.id,
+      customerId: quote.customerId,
+      vehicleId: quote.vehicleId,
+      status: quote.status,
+      validUntil: quote.validUntil,
+      taxRate: Number(quote.taxRate),
+      discount: Number(quote.discount),
+      laborHourRate: quote.laborHourRate != null ? Number(quote.laborHourRate) : null,
+      notes: quote.notes,
+      terms: quote.terms,
+    }}
+    customers={customers}
+    vehicles={vehicles}
+  />
     </div>
   )
 }

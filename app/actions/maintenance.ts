@@ -6,7 +6,7 @@ import { db } from "@/lib/db"
 import { maintenanceSchema, type MaintenanceInput } from "@/lib/validations"
 import type { ActionResult } from "@/types"
 import { auth } from "@/auth"
-import { generateQuoteNumber } from "@/lib/utils"
+import { generateNextQuoteNumber } from "@/app/actions/quotes"
 
 async function requireAuth() {
   const session = await auth()
@@ -27,8 +27,7 @@ export async function createMaintenance(
   if (data.createQuote) {
     const settings = await db.workshopSettings.findFirst()
     const prefix = settings?.quotePrefix ?? "ORC"
-    const counter = settings?.quoteCounter ?? 1
-    const number = generateQuoteNumber(prefix, counter)
+    const number = await generateNextQuoteNumber(prefix)
 
     const quote = await db.quote.create({
       data: {
@@ -48,13 +47,6 @@ export async function createMaintenance(
     })
 
     quoteId = quote.id
-
-    if (settings) {
-      await db.workshopSettings.update({
-        where: { id: settings.id },
-        data: { quoteCounter: counter + 1 },
-      })
-    }
   }
 
   const record = await db.maintenanceRecord.create({
@@ -143,7 +135,19 @@ export async function getMaintenanceRecords(filters?: {
       customer: { select: { id: true, name: true } },
       vehicle: { select: { id: true, plate: true, brand: true, model: true } },
       technician: { select: { id: true, name: true } },
-      quote: { select: { id: true, number: true } },
+      quote: {
+        select: {
+          id: true,
+          number: true,
+          status: true,
+          items: {
+            select: { description: true, quantity: true, unitPrice: true, discountPct: true },
+          },
+          laborItems: {
+            select: { description: true, hours: true, total: true },
+          },
+        },
+      },
     },
     orderBy: { date: "desc" },
   })

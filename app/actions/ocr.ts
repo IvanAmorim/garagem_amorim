@@ -47,7 +47,8 @@ export async function assignInvoiceItems(data: AssignInvoiceItemInput): Promise<
   const parsed = assignInvoiceItemSchema.safeParse(data)
   if (!parsed.success) return { success: false, error: "Dados inválidos" }
 
-  const { itemIds, customerId, vehicleId, quoteId, maintenanceRecordId } = parsed.data
+  const { items, customerId, vehicleId, quoteId, maintenanceRecordId } = parsed.data
+  const itemIds = items.map((i) => i.id)
 
   await db.extractedInvoiceItem.updateMany({
     where: { id: { in: itemIds } },
@@ -61,25 +62,64 @@ export async function assignInvoiceItems(data: AssignInvoiceItemInput): Promise<
   })
 
   if (quoteId) {
-    const items = await db.extractedInvoiceItem.findMany({
+    const extractedItems = await db.extractedInvoiceItem.findMany({
       where: { id: { in: itemIds } },
+      include: { uploadedDocument: { select: { id: true, invoiceRef: true, invoiceDate: true } } },
     })
 
-    for (const item of items) {
-      const total = Number(item.quantity) * Number(item.unitPrice) * (1 + (Number(item.taxRate) || 0) / 100)
+    for (const item of extractedItems) {
+      const option = items.find((i) => i.id === item.id)
+      const customerDiscountApplied = option?.customerDiscountApplied ?? false
+
+      const listPrice = Number(item.unitPrice)
+      const purchaseUnitPrice = item.purchaseUnitPrice !== null ? Number(item.purchaseUnitPrice) : listPrice
+      const discountPct = customerDiscountApplied ? (Number(item.supplierDiscountPct) || 0) : 0
+      // unitPrice always stored as list price; discountPct reflects what the client gets
+      const effectivePrice = listPrice * (1 - discountPct / 100)
+      const total = Number(item.quantity) * effectivePrice * (1 + (Number(item.taxRate) || 0) / 100)
+
       await db.quoteItem.create({
         data: {
           quoteId,
           description: item.description,
           reference: item.reference,
           quantity: item.quantity,
-          unitPrice: item.unitPrice,
+          unitPrice: listPrice,
+          discountPct,
+          costPrice: purchaseUnitPrice,
+          purchaseUnitPrice: purchaseUnitPrice,
+          customerDiscountApplied,
           taxRate: item.taxRate ?? 23,
           total,
+          supplierInvoiceRef: item.uploadedDocument.invoiceRef ?? null,
+          purchaseDate: item.uploadedDocument.invoiceDate ?? null,
+          uploadedDocumentId: item.uploadedDocument.id,
+          extractedInvoiceItemId: item.id,
         },
       })
     }
 
+    // Recalculate quote totals
+    const quote = await db.quote.findUnique({
+      where: { id: quoteId },
+      include: { items: true, laborItems: true },
+    })
+    if (quote) {
+      const itemsSubtotal = quote.items.reduce((acc, i) => {
+        const discountedPrice = Number(i.unitPrice) * (1 - Number(i.discountPct) / 100)
+        return acc + Number(i.quantity) * discountedPrice
+      }, 0)
+      const laborSubtotal = quote.laborItems.reduce((acc, i) => acc + Number(i.total), 0)
+      const subtotal = itemsSubtotal + laborSubtotal - Number(quote.discount)
+      const itemsTax = quote.items.reduce((acc, i) => {
+        const discountedPrice = Number(i.unitPrice) * (1 - Number(i.discountPct) / 100)
+        return acc + Number(i.quantity) * discountedPrice * (Number(i.taxRate) / 100)
+      }, 0)
+      await db.quote.update({
+        where: { id: quoteId },
+        data: { subtotal, taxAmount: itemsTax, total: subtotal + itemsTax },
+      })
+    }
     revalidatePath(`/orcamentos/${quoteId}`)
   }
 
@@ -104,6 +144,8 @@ export async function updateExtractedItem(
     reference?: string
     quantity?: number
     unitPrice?: number
+    supplierDiscountPct?: number
+    purchaseUnitPrice?: number
     taxRate?: number
     total?: number
   }

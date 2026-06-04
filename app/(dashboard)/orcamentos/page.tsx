@@ -13,10 +13,9 @@ export const metadata: Metadata = { title: "Orçamentos" }
 
 const statusVariant = {
   DRAFT: "secondary" as const,
-  SENT: "warning" as const,
-  APPROVED: "success" as const,
-  REJECTED: "destructive" as const,
-  CONVERTED: "default" as const,
+  IN_PROGRESS: "warning" as const,
+  COMPLETED: "success" as const,
+  PAID: "default" as const,
 }
 
 export default async function OrcamentosPage({
@@ -47,9 +46,9 @@ export default async function OrcamentosPage({
         {[
           { value: "ALL", label: "Todos" },
           { value: "DRAFT", label: "Rascunho" },
-          { value: "SENT", label: "Enviado" },
-          { value: "APPROVED", label: "Aprovado" },
-          { value: "CONVERTED", label: "Convertido" },
+          { value: "IN_PROGRESS", label: "Em Execução" },
+          { value: "COMPLETED", label: "Concluído" },
+          { value: "PAID", label: "Pago" },
         ].map((f) => (
           <Link key={f.value} href={`/orcamentos?status=${f.value}${search ? `&search=${search}` : ""}`}>
             <Badge

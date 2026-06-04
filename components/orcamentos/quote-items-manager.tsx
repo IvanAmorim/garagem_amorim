@@ -20,8 +20,6 @@ import {
 import { addQuoteItem, removeQuoteItem, addLaborItem, removeLaborItem } from "@/app/actions/quotes"
 import { toast } from "@/hooks/use-toast"
 import { formatCurrency } from "@/lib/utils"
-import { useRouter as useNextRouter } from "next/navigation"
-import { Separator } from "@/components/ui/separator"
 
 interface QuoteItem {
   id: string
@@ -33,6 +31,9 @@ interface QuoteItem {
   taxRate: number
   total: number
   stockItem: { id: string; name: string; unit: string } | null
+  customerDiscountApplied?: boolean
+  purchaseUnitPrice?: number | null
+  supplierInvoiceRef?: string | null
 }
 
 interface LaborItem {
@@ -252,9 +253,15 @@ export function QuoteItemsManager({
               {items.map((item) => (
                 <div key={item.id} className="flex items-center gap-3 p-4">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm font-medium">{item.description}</p>
-                      {item.discountPct > 0 && (
+                      {item.discountPct > 0 && item.customerDiscountApplied && (
+                        <Badge variant="warning" className="text-xs gap-0.5">
+                          <Percent className="h-2.5 w-2.5" />
+                          Desc. fornecedor {item.discountPct}%
+                        </Badge>
+                      )}
+                      {item.discountPct > 0 && !item.customerDiscountApplied && (
                         <Badge variant="warning" className="text-xs gap-0.5">
                           <Percent className="h-2.5 w-2.5" />
                           {item.discountPct}% desc.
@@ -274,6 +281,12 @@ export function QuoteItemsManager({
                     {item.stockItem && (
                       <p className="text-xs text-primary mt-0.5">
                         Stock: {item.stockItem.name}
+                      </p>
+                    )}
+                    {item.supplierInvoiceRef && (
+                      <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                        <Tag className="h-3 w-3 flex-shrink-0" />
+                        {item.supplierInvoiceRef}
                       </p>
                     )}
                   </div>

@@ -4,9 +4,9 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Edit, Plus, FileText, Wrench, Gauge, Hash, Fuel, User } from "lucide-react"
+import { ArrowLeft, Edit, Plus, FileText, Wrench, Gauge, Hash, Fuel, User, Package, StickyNote } from "lucide-react"
 import Link from "next/link"
-import { formatDate, getFuelTypeLabel, getQuoteStatusLabel } from "@/lib/utils"
+import { formatDate, formatCurrency, decimalToNumber, getFuelTypeLabel, getQuoteStatusLabel } from "@/lib/utils"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = { title: "Ficha do Veículo" }
@@ -109,28 +109,91 @@ export default async function VeiculoDetailPage({ params }: { params: Promise<{ 
               <p className="text-sm text-muted-foreground">Sem manutenções registadas</p>
             </Card>
           ) : (
-            <div className="space-y-2">
-              {vehicle.maintenanceRecords.map((m) => (
-                <Card key={m.id} className="p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1">
-                      <p className="text-sm font-medium line-clamp-2">{m.description}</p>
-                      {m.mileage && (
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          <Gauge className="h-3 w-3 inline mr-0.5" />
-                          {m.mileage.toLocaleString("pt-PT")} km
+            <div className="space-y-3">
+              {vehicle.maintenanceRecords.map((m) => {
+                const quoteItems = m.quote?.items ?? []
+                const laborItems = m.quote?.laborItems ?? []
+                const quoteHours = laborItems.reduce((s, i) => s + Number(i.hours), 0)
+                const displayHours = quoteHours > 0 ? quoteHours : (m.laborHours ? Number(m.laborHours) : null)
+                return (
+                  <Card key={m.id} className="p-4">
+                    <div className="space-y-2">
+                      {/* Header */}
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-medium">{m.description}</p>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {m.quote && (
+                            <Badge variant="outline" className="text-xs">
+                              {getQuoteStatusLabel(m.quote.status)}
+                            </Badge>
+                          )}
+                          <span className="text-xs text-muted-foreground">{formatDate(m.date)}</span>
+                        </div>
+                      </div>
+
+                      {/* Materials */}
+                      {quoteItems.length > 0 && (
+                        <div className="pl-0">
+                          <p className="text-xs font-medium text-muted-foreground mb-1">
+                            Material ({quoteItems.length} artigo{quoteItems.length !== 1 ? "s" : ""})
+                          </p>
+                          {quoteItems.slice(0, 3).map((item, idx) => (
+                            <div key={idx} className="flex items-center justify-between text-xs text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <Package className="h-3 w-3 flex-shrink-0" />
+                                {Number(item.quantity)} × {item.description}
+                              </span>
+                              <span className="flex-shrink-0 ml-2">
+                                {formatCurrency(decimalToNumber(item.unitPrice) * (1 - decimalToNumber(item.discountPct) / 100) * decimalToNumber(item.quantity))}
+                              </span>
+                            </div>
+                          ))}
+                          {quoteItems.length > 3 && (
+                            <p className="text-xs text-muted-foreground">+{quoteItems.length - 3} mais</p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Labor */}
+                      {laborItems.length > 0 && (
+                        <div className="text-xs text-muted-foreground">
+                          Mão de obra: {laborItems.map(i => `${i.description} (${Number(i.hours)}h)`).join(", ")}
+                        </div>
+                      )}
+
+                      {/* Notes */}
+                      {m.notes && (
+                        <p className="text-xs text-muted-foreground flex items-start gap-1">
+                          <StickyNote className="h-3 w-3 flex-shrink-0 mt-0.5" />
+                          <span>{m.notes}</span>
                         </p>
                       )}
-                      {m.technician && (
-                        <p className="text-xs text-muted-foreground">
-                          Técnico: {m.technician.name}
-                        </p>
-                      )}
+
+                      {/* Footer */}
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground border-t pt-2">
+                        {m.mileage && (
+                          <span className="flex items-center gap-1">
+                            <Gauge className="h-3 w-3" />{m.mileage.toLocaleString("pt-PT")} km
+                          </span>
+                        )}
+                        {displayHours != null && (
+                          <span>{displayHours}h{quoteHours > 0 ? " (orçamento)" : ""}</span>
+                        )}
+                        {m.technician && (
+                          <span className="flex items-center gap-1">
+                            <User className="h-3 w-3" />{m.technician.name}
+                          </span>
+                        )}
+                        {m.quote && (
+                          <Link href={`/orcamentos/${m.quote.id}`} className="flex items-center gap-1 text-primary hover:underline ml-auto">
+                            <FileText className="h-3 w-3" />{m.quote.number}
+                          </Link>
+                        )}
+                      </div>
                     </div>
-                    <span className="text-xs text-muted-foreground flex-shrink-0">{formatDate(m.date)}</span>
-                  </div>
-                </Card>
-              ))}
+                  </Card>
+                )
+              })}
             </div>
           )}
         </TabsContent>

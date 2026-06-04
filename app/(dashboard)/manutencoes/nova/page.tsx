@@ -23,7 +23,7 @@ export default async function NovaManutencaoPage({
     db.customer.findMany({ select: { id: true, name: true }, where: { status: "ACTIVE" }, orderBy: { name: "asc" } }),
     db.vehicle.findMany({ select: { id: true, plate: true, brand: true, model: true, customerId: true }, orderBy: { plate: "asc" } }),
     db.user.findMany({ select: { id: true, name: true }, where: { role: { in: ["ADMIN", "MECHANIC"] } }, orderBy: { name: "asc" } }),
-    db.quote.findMany({ select: { id: true, number: true, customerId: true, vehicleId: true }, where: { status: { in: ["APPROVED", "SENT"] } }, orderBy: { createdAt: "desc" } }),
+    db.quote.findMany({ select: { id: true, number: true, customerId: true, vehicleId: true }, where: { status: { in: ["IN_PROGRESS", "DRAFT"] } }, orderBy: { createdAt: "desc" } }),
   ])
 
   return (

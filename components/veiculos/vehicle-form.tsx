@@ -14,11 +14,22 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { vehicleSchema, type VehicleInput } from "@/lib/validations"
 import { createVehicle, updateVehicle } from "@/app/actions/vehicles"
 import { toast } from "@/hooks/use-toast"
-import type { Vehicle, Customer } from "@/types"
+interface VehicleData {
+  id: string
+  plate: string
+  brand: string
+  model: string
+  year: number | null
+  vin: string | null
+  mileage: number | null
+  fuelType: "GASOLINE" | "DIESEL" | "ELECTRIC" | "HYBRID" | "LPG" | "OTHER"
+  notes: string | null
+  customerId: string
+}
 
 interface VehicleFormProps {
-  vehicle?: Vehicle
-  customers: Pick<Customer, "id" | "name">[]
+  vehicle?: VehicleData
+  customers: { id: string; name: string }[]
   defaultCustomerId?: string
 }
 

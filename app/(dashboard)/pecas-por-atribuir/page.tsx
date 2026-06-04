@@ -1,8 +1,7 @@
 import { getAllExtractedItems } from "@/app/actions/ocr"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
-import { Scan, Upload } from "lucide-react"
+import { Scan } from "lucide-react"
 import type { Metadata } from "next"
 import { InvoiceUploadSection } from "@/components/ocr/invoice-upload-section"
 import { ExtractedItemsTable } from "@/components/ocr/extracted-items-table"
@@ -31,6 +30,7 @@ export default async function PecasPorAtribuirPage({
   ])
 
   const unassignedCount = items.filter((i) => i.status === "UNASSIGNED").length
+  const reviewCount = items.filter((i) => i.needsReview && i.status === "UNASSIGNED").length
 
   return (
     <div className="p-4 lg:p-6 space-y-4">
@@ -41,17 +41,22 @@ export default async function PecasPorAtribuirPage({
             Classifique as peças extraídas de faturas e associe-as aos serviços
           </p>
         </div>
-        {unassignedCount > 0 && (
-          <Badge variant="warning" className="flex-shrink-0">
-            {unassignedCount} por atribuir
-          </Badge>
-        )}
+        <div className="flex gap-2 flex-shrink-0">
+          {reviewCount > 0 && (
+            <Badge variant="destructive">
+              {reviewCount} a rever
+            </Badge>
+          )}
+          {unassignedCount > 0 && (
+            <Badge variant="warning">
+              {unassignedCount} por atribuir
+            </Badge>
+          )}
+        </div>
       </div>
 
-      {/* Upload section */}
       <InvoiceUploadSection defaultQuoteId={quoteId} />
 
-      {/* Items table */}
       {items.length > 0 ? (
         <ExtractedItemsTable
           items={items.map((item) => ({
@@ -61,8 +66,12 @@ export default async function PecasPorAtribuirPage({
             reference: item.reference,
             quantity: Number(item.quantity),
             unitPrice: Number(item.unitPrice),
+            supplierDiscountPct: item.supplierDiscountPct != null ? Number(item.supplierDiscountPct) : null,
+            purchaseUnitPrice: item.purchaseUnitPrice != null ? Number(item.purchaseUnitPrice) : null,
             taxRate: item.taxRate ? Number(item.taxRate) : null,
             total: Number(item.total),
+            needsReview: item.needsReview,
+            reviewReason: item.reviewReason,
             status: item.status,
             customerId: item.customerId,
             vehicleId: item.vehicleId,
@@ -72,7 +81,12 @@ export default async function PecasPorAtribuirPage({
             vehicle: item.vehicle,
             quote: item.quote,
             maintenanceRecord: item.maintenanceRecord,
-            uploadedDocument: { name: item.uploadedDocument.name, uploadedAt: item.uploadedDocument.uploadedAt },
+            uploadedDocument: {
+              name: item.uploadedDocument.name,
+              uploadedAt: item.uploadedDocument.uploadedAt,
+              invoiceRef: item.uploadedDocument.invoiceRef,
+              invoiceDate: item.uploadedDocument.invoiceDate,
+            },
           }))}
           customers={customers}
           vehicles={vehicles}

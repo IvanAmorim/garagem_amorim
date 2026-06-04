@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
+import { openAiOcrExtract } from "@/lib/ocr/openai-invoice-ocr"
+import { compressInvoiceImage } from "@/lib/ocr/image-compress"
 
-/**
- * OCR Invoice processing endpoint.
- * Currently uses mock data. Replace the `mockOcrExtract` function
- * with a real integration (OpenAI Vision, Google Vision, Azure OCR).
- */
 export async function POST(request: NextRequest) {
   const session = await auth()
   if (!session) {
@@ -17,18 +14,29 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData()
     const file = formData.get("file") as File | null
     const quoteId = formData.get("quoteId") as string | null
+    const invoiceRef = formData.get("invoiceRef") as string | null
+    const invoiceDate = formData.get("invoiceDate") as string | null
 
     if (!file) {
       return NextResponse.json({ error: "Ficheiro obrigatório" }, { status: 400 })
     }
 
-    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"]
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"]
     if (!allowedTypes.includes(file.type)) {
-      return NextResponse.json({ error: "Tipo de ficheiro não suportado" }, { status: 400 })
+      return NextResponse.json({ error: "Tipo de ficheiro não suportado. Usa JPG, PNG ou WEBP." }, { status: 400 })
     }
 
-    // Store the uploaded document reference
-    // In production: upload to Vercel Blob / Supabase Storage and get URL
+    const maxSize = 15 * 1024 * 1024
+    if (file.size > maxSize) {
+      return NextResponse.json({ error: "Ficheiro demasiado grande. Máximo 15MB." }, { status: 400 })
+    }
+
+    // Compress and resize before sending to OpenAI
+    const { buffer, mimeType } = await compressInvoiceImage(file)
+
+    // Extract items via OCR
+    const ocrResult = await openAiOcrExtract(buffer, mimeType)
+
     const documentUrl = `/uploads/${Date.now()}-${file.name}`
 
     const uploadedDoc = await db.uploadedDocument.create({
@@ -38,92 +46,54 @@ export async function POST(request: NextRequest) {
         mimeType: file.type,
         size: file.size,
         quoteId: quoteId || null,
+        invoiceRef: invoiceRef || ocrResult.documentNumber || null,
+        invoiceDate: invoiceDate
+          ? new Date(invoiceDate)
+          : ocrResult.documentDate
+            ? new Date(ocrResult.documentDate)
+            : null,
       },
     })
 
-    // Extract items via OCR service
-    // In production: replace mockOcrExtract with real OCR call
-    const extractedItems = await mockOcrExtract(file)
-
-    // Save extracted items to database
     await db.extractedInvoiceItem.createMany({
-      data: extractedItems.map((item) => ({
+      data: ocrResult.items.map((item) => ({
         uploadedDocumentId: uploadedDoc.id,
         description: item.description,
         reference: item.reference,
         quantity: item.quantity,
-        unitPrice: item.unitPrice,
+        unitPrice: item.unitPriceBeforeDiscount,
+        supplierDiscountPct: item.supplierDiscountPct,
+        purchaseUnitPrice: item.purchaseUnitPrice,
         taxRate: item.taxRate,
-        total: item.total,
+        total: item.lineTotalAfterDiscount,
+        needsReview: item.needsReview,
+        reviewReason: item.reviewReason,
         status: "UNASSIGNED",
       })),
     })
 
+    const suspectCount = ocrResult.items.filter((i) => i.needsReview).length
+
     return NextResponse.json({
       success: true,
       documentId: uploadedDoc.id,
-      itemCount: extractedItems.length,
-      items: extractedItems,
+      itemCount: ocrResult.items.length,
+      suspectCount,
+      items: ocrResult.items.map((item) => ({
+        description: item.description,
+        reference: item.reference,
+        quantity: item.quantity,
+        unitPrice: item.unitPriceBeforeDiscount,
+        supplierDiscountPct: item.supplierDiscountPct,
+        purchaseUnitPrice: item.purchaseUnitPrice,
+        taxRate: item.taxRate,
+        total: item.lineTotalAfterDiscount,
+        needsReview: item.needsReview,
+        reviewReason: item.reviewReason,
+      })),
     })
   } catch (error) {
     console.error("OCR error:", error)
     return NextResponse.json({ error: "Erro ao processar fatura" }, { status: 500 })
   }
-}
-
-/**
- * Mock OCR extraction - simulates AI/OCR output.
- * Replace this with a real OCR integration:
- *
- * OpenAI Vision:
- *   const response = await openai.chat.completions.create({
- *     model: "gpt-4o",
- *     messages: [{ role: "user", content: [{ type: "image_url", image_url: { url: base64DataUrl } }, { type: "text", text: EXTRACTION_PROMPT }] }]
- *   })
- *
- * Google Vision:
- *   const [result] = await client.textDetection(imageBuffer)
- *   // parse result.textAnnotations
- *
- * Azure OCR:
- *   const result = await client.beginAnalyzeDocument("prebuilt-invoice", imageBuffer)
- */
-async function mockOcrExtract(_file: File) {
-  // Simulate processing delay
-  await new Promise((resolve) => setTimeout(resolve, 800))
-
-  return [
-    {
-      description: "Filtro de Óleo Bosch",
-      reference: "BO-F-0987",
-      quantity: 2,
-      unitPrice: 12.5,
-      taxRate: 23,
-      total: 30.75,
-    },
-    {
-      description: "Óleo Motor Castrol 5W-30 5L",
-      reference: "CA-OIL-530",
-      quantity: 3,
-      unitPrice: 38.0,
-      taxRate: 23,
-      total: 140.22,
-    },
-    {
-      description: "Pastilhas de Travão Dianteiras",
-      reference: "PT-BR-001",
-      quantity: 1,
-      unitPrice: 45.0,
-      taxRate: 23,
-      total: 55.35,
-    },
-    {
-      description: "Correia de Distribuição Kit",
-      reference: "CD-KIT-123",
-      quantity: 1,
-      unitPrice: 89.9,
-      taxRate: 23,
-      total: 110.58,
-    },
-  ]
 }

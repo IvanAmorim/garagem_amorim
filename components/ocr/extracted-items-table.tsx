@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { Check, X, Edit2, Users, Car, FileText, Wrench, Filter } from "lucide-react"
+import { Check, X, Edit2, Users, Car, FileText, Wrench, Tag, ToggleLeft, ToggleRight, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -29,8 +29,12 @@ interface ExtractedItem {
   reference: string | null | undefined
   quantity: number
   unitPrice: number
+  supplierDiscountPct: number | null
+  purchaseUnitPrice: number | null
   taxRate: number | null
   total: number
+  needsReview: boolean
+  reviewReason: string | null
   status: string
   customerId: string | null | undefined
   vehicleId: string | null | undefined
@@ -40,7 +44,12 @@ interface ExtractedItem {
   vehicle: { id: string; plate: string; brand: string; model: string } | null
   quote: { id: string; number: string } | null
   maintenanceRecord: { id: string; description: string; date: Date } | null
-  uploadedDocument: { name: string; uploadedAt: Date }
+  uploadedDocument: {
+    name: string
+    uploadedAt: Date
+    invoiceRef: string | null
+    invoiceDate: Date | null
+  }
 }
 
 interface ExtractedItemsTableProps {
@@ -71,6 +80,8 @@ export function ExtractedItemsTable({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [showAssignDialog, setShowAssignDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState<ExtractedItem | null>(null)
+  // Per-item customerDiscountApplied toggle state
+  const [discountApplied, setDiscountApplied] = useState<Record<string, boolean>>({})
 
   const [assignment, setAssignment] = useState({
     customerId: "",
@@ -84,6 +95,8 @@ export function ExtractedItemsTable({
     reference: "",
     quantity: "",
     unitPrice: "",
+    supplierDiscountPct: "",
+    purchaseUnitPrice: "",
     taxRate: "",
   })
 
@@ -109,11 +122,18 @@ export function ExtractedItemsTable({
     }
   }
 
+  const toggleDiscount = (id: string) => {
+    setDiscountApplied((prev) => ({ ...prev, [id]: !prev[id] }))
+  }
+
   const handleAssign = () => {
     if (selectedIds.size === 0) return
     startTransition(async () => {
       const result = await assignInvoiceItems({
-        itemIds: Array.from(selectedIds),
+        items: Array.from(selectedIds).map((id) => ({
+          id,
+          customerDiscountApplied: discountApplied[id] ?? false,
+        })),
         customerId: assignment.customerId || undefined,
         vehicleId: assignment.vehicleId || undefined,
         quoteId: assignment.quoteId || undefined,
@@ -147,6 +167,8 @@ export function ExtractedItemsTable({
       reference: item.reference ?? "",
       quantity: String(item.quantity),
       unitPrice: String(item.unitPrice),
+      supplierDiscountPct: item.supplierDiscountPct != null ? String(item.supplierDiscountPct) : "",
+      purchaseUnitPrice: item.purchaseUnitPrice != null ? String(item.purchaseUnitPrice) : "",
       taxRate: item.taxRate != null ? String(item.taxRate) : "",
     })
     setShowEditDialog(item)
@@ -155,13 +177,26 @@ export function ExtractedItemsTable({
   const handleSaveEdit = () => {
     if (!showEditDialog) return
     startTransition(async () => {
+      const qty = parseFloat(editData.quantity)
+      const unitP = parseFloat(editData.unitPrice)
+      const discPct = editData.supplierDiscountPct ? parseFloat(editData.supplierDiscountPct) : undefined
+      const purchaseP = editData.purchaseUnitPrice
+        ? parseFloat(editData.purchaseUnitPrice)
+        : discPct != null
+          ? unitP * (1 - discPct / 100)
+          : undefined
+      const tax = editData.taxRate ? parseFloat(editData.taxRate) : undefined
+      const total = qty * (purchaseP ?? unitP) * (1 + ((tax ?? 0) / 100))
+
       await updateExtractedItem(showEditDialog.id, {
         description: editData.description,
         reference: editData.reference || undefined,
-        quantity: parseFloat(editData.quantity),
-        unitPrice: parseFloat(editData.unitPrice),
-        taxRate: editData.taxRate ? parseFloat(editData.taxRate) : undefined,
-        total: parseFloat(editData.quantity) * parseFloat(editData.unitPrice) * (1 + (editData.taxRate ? parseFloat(editData.taxRate) / 100 : 0)),
+        quantity: qty,
+        unitPrice: unitP,
+        supplierDiscountPct: discPct,
+        purchaseUnitPrice: purchaseP,
+        taxRate: tax,
+        total,
       })
       toast({ title: "Artigo atualizado" })
       setShowEditDialog(null)
@@ -170,11 +205,9 @@ export function ExtractedItemsTable({
   }
 
   const unassignedInFiltered = filteredItems.filter((i) => i.status === "UNASSIGNED")
-
   const filteredVehicles = assignment.customerId
     ? vehicles.filter((v) => v.customerId === assignment.customerId)
     : vehicles
-
   const filteredQuotes = assignment.customerId
     ? quotes.filter((q) => q.customerId === assignment.customerId)
     : quotes
@@ -220,7 +253,6 @@ export function ExtractedItemsTable({
         </CardHeader>
 
         <CardContent className="p-0">
-          {/* Select all */}
           {unassignedInFiltered.length > 0 && (
             <div className="flex items-center gap-2 px-4 py-2 border-b bg-muted/30">
               <Checkbox
@@ -232,106 +264,184 @@ export function ExtractedItemsTable({
           )}
 
           <div className="divide-y">
-            {filteredItems.map((item) => (
-              <div key={item.id} className="p-4">
-                <div className="flex items-start gap-3">
-                  {item.status === "UNASSIGNED" && (
-                    <Checkbox
-                      checked={selectedIds.has(item.id)}
-                      onCheckedChange={() => toggleSelect(item.id)}
-                      className="mt-0.5"
-                    />
-                  )}
+            {filteredItems.map((item) => {
+              const hasDiscount = item.supplierDiscountPct != null && item.supplierDiscountPct > 0
+              const purchasePrice = item.purchaseUnitPrice != null ? item.purchaseUnitPrice : item.unitPrice
+              const isDiscountApplied = discountApplied[item.id] ?? false
+              const clientPrice = isDiscountApplied ? purchasePrice : item.unitPrice
 
-                  <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-                    {/* Item details */}
-                    <div className="sm:col-span-2">
-                      <p className="font-medium text-sm">{item.description}</p>
-                      {item.reference && <p className="text-xs text-muted-foreground">Ref: {item.reference}</p>}
-                      <p className="text-xs text-muted-foreground">
-                        {item.quantity} × {formatCurrency(item.unitPrice)}
-                        {item.taxRate != null ? ` + IVA ${item.taxRate}%` : ""}
-                        {" = "}{formatCurrency(item.total)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Fatura: {item.uploadedDocument.name}
-                      </p>
-                    </div>
+              return (
+                <div key={item.id} className={`p-4 ${item.needsReview ? "bg-destructive/5 border-l-2 border-l-destructive" : ""}`}>
+                  <div className="flex items-start gap-3">
+                    {item.status === "UNASSIGNED" && (
+                      <Checkbox
+                        checked={selectedIds.has(item.id)}
+                        onCheckedChange={() => toggleSelect(item.id)}
+                        className="mt-0.5"
+                      />
+                    )}
 
-                    {/* Assignments */}
-                    <div className="space-y-0.5">
-                      {item.customer && (
-                        <div className="flex items-center gap-1 text-xs">
-                          <Users className="h-3 w-3 text-muted-foreground" />
-                          <span>{item.customer.name}</span>
+                    <div className="flex-1 min-w-0 space-y-2">
+                      {/* Row 1: description + status + actions */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="font-medium text-sm">{item.description}</p>
+                          {item.reference && (
+                            <p className="text-xs text-muted-foreground">Ref: {item.reference}</p>
+                          )}
                         </div>
-                      )}
-                      {item.vehicle && (
-                        <div className="flex items-center gap-1 text-xs">
-                          <Car className="h-3 w-3 text-muted-foreground" />
-                          <span>{item.vehicle.plate}</span>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          {item.needsReview && (
+                            <Badge variant="destructive" className="text-xs gap-0.5" title={item.reviewReason ?? "Rever manualmente"}>
+                              <AlertTriangle className="h-3 w-3" />
+                              Rever
+                            </Badge>
+                          )}
+                          <Badge variant={statusBadge[item.status as keyof typeof statusBadge] ?? "secondary"} className="text-xs">
+                            {getInvoiceItemStatusLabel(item.status)}
+                          </Badge>
+                          <Button variant="ghost" size="icon-sm" onClick={() => openEdit(item)} title="Editar">
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </Button>
+                          {item.status === "UNASSIGNED" && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                className="text-success"
+                                onClick={() => {
+                                  setSelectedIds(new Set([item.id]))
+                                  setShowAssignDialog(true)
+                                }}
+                                title="Atribuir"
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                className="text-muted-foreground"
+                                onClick={() => handleIgnore(item.id)}
+                                disabled={isPending}
+                                title="Ignorar"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            </>
+                          )}
                         </div>
-                      )}
-                      {item.quote && (
-                        <div className="flex items-center gap-1 text-xs">
-                          <FileText className="h-3 w-3 text-muted-foreground" />
-                          <span>{item.quote.number}</span>
-                        </div>
-                      )}
-                      {item.maintenanceRecord && (
-                        <div className="flex items-center gap-1 text-xs">
-                          <Wrench className="h-3 w-3 text-muted-foreground" />
-                          <span>{item.maintenanceRecord.description.slice(0, 30)}</span>
-                        </div>
-                      )}
-                    </div>
+                      </div>
 
-                    {/* Status & actions */}
-                    <div className="flex items-start justify-between gap-2 sm:flex-col sm:items-end">
-                      <Badge variant={statusBadge[item.status as keyof typeof statusBadge] ?? "secondary"}>
-                        {getInvoiceItemStatusLabel(item.status)}
-                      </Badge>
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => openEdit(item)}
-                          title="Editar"
-                        >
-                          <Edit2 className="h-3.5 w-3.5" />
-                        </Button>
-                        {item.status === "UNASSIGNED" && (
+                      {/* Row 2: pricing breakdown */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-xs">
+                        <div>
+                          <span className="text-muted-foreground">Qtd</span>
+                          <p className="font-medium">{item.quantity}</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">P. Lista (s/ desc.)</span>
+                          <p className="font-medium">{formatCurrency(item.unitPrice)}</p>
+                        </div>
+                        {hasDiscount && (
                           <>
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              className="text-success"
-                              onClick={() => {
-                                setSelectedIds(new Set([item.id]))
-                                setShowAssignDialog(true)
-                              }}
-                              title="Atribuir"
-                            >
-                              <Check className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              className="text-muted-foreground"
-                              onClick={() => handleIgnore(item.id)}
-                              disabled={isPending}
-                              title="Ignorar"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </Button>
+                            <div>
+                              <span className="text-muted-foreground">Desc. fornecedor</span>
+                              <p className="font-medium text-orange-600">{item.supplierDiscountPct}%</p>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Custo oficina</span>
+                              <p className="font-medium text-blue-600">{formatCurrency(purchasePrice)}</p>
+                            </div>
                           </>
+                        )}
+                        <div>
+                          <span className="text-muted-foreground">IVA</span>
+                          <p className="font-medium">{item.taxRate != null ? `${item.taxRate}%` : "—"}</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Total (c/ IVA)</span>
+                          <p className="font-medium">{formatCurrency(item.total)}</p>
+                        </div>
+                      </div>
+
+                      {/* Row 3: discount toggle (only if there's a supplier discount) */}
+                      {hasDiscount && item.status === "UNASSIGNED" && (
+                        <button
+                          type="button"
+                          onClick={() => toggleDiscount(item.id)}
+                          className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded-full border transition-colors ${
+                            isDiscountApplied
+                              ? "border-blue-300 bg-blue-50 text-blue-700"
+                              : "border-muted text-muted-foreground hover:border-primary/50"
+                          }`}
+                        >
+                          {isDiscountApplied ? (
+                            <ToggleRight className="h-3.5 w-3.5" />
+                          ) : (
+                            <ToggleLeft className="h-3.5 w-3.5" />
+                          )}
+                          Aplicar desconto ao cliente
+                          {isDiscountApplied && (
+                            <span className="ml-1 font-medium">
+                              → cliente paga {formatCurrency(clientPrice)}
+                            </span>
+                          )}
+                          {!isDiscountApplied && (
+                            <span className="ml-1">
+                              → cliente paga {formatCurrency(item.unitPrice)}
+                            </span>
+                          )}
+                        </button>
+                      )}
+
+                      {/* Review warning */}
+                      {item.needsReview && item.reviewReason && (
+                        <div className="flex items-start gap-1.5 text-xs text-destructive bg-destructive/10 rounded px-2 py-1.5">
+                          <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
+                          <span>{item.reviewReason}</span>
+                        </div>
+                      )}
+
+                      {/* Row 4: invoice metadata + assignments */}
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground border-t pt-2">
+                        {item.uploadedDocument.invoiceRef && (
+                          <span className="flex items-center gap-1">
+                            <Tag className="h-3 w-3" />
+                            {item.uploadedDocument.invoiceRef}
+                          </span>
+                        )}
+                        {item.uploadedDocument.invoiceDate && (
+                          <span>{formatDate(item.uploadedDocument.invoiceDate)}</span>
+                        )}
+                        <span className="opacity-60">{item.uploadedDocument.name}</span>
+
+                        {item.customer && (
+                          <span className="flex items-center gap-1">
+                            <Users className="h-3 w-3" />{item.customer.name}
+                          </span>
+                        )}
+                        {item.vehicle && (
+                          <span className="flex items-center gap-1">
+                            <Car className="h-3 w-3" />{item.vehicle.plate}
+                          </span>
+                        )}
+                        {item.quote && (
+                          <Link href={`/orcamentos/${item.quote.id}`} className="flex items-center gap-1 text-primary hover:underline">
+                            <FileText className="h-3 w-3" />{item.quote.number}
+                          </Link>
+                        )}
+                        {item.maintenanceRecord && (
+                          <span className="flex items-center gap-1">
+                            <Wrench className="h-3 w-3" />
+                            {item.maintenanceRecord.description.slice(0, 30)}
+                          </span>
                         )}
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </CardContent>
       </Card>
@@ -438,14 +548,22 @@ export function ExtractedItemsTable({
               <Label>Referência</Label>
               <Input value={editData.reference} onChange={(e) => setEditData({ ...editData, reference: e.target.value })} />
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <div className="space-y-2">
                 <Label>Qtd.</Label>
                 <Input type="number" step="0.001" value={editData.quantity} onChange={(e) => setEditData({ ...editData, quantity: e.target.value })} />
               </div>
               <div className="space-y-2">
-                <Label>P. Unit.</Label>
+                <Label>P. Lista (s/ desc.)</Label>
                 <Input type="number" step="0.01" value={editData.unitPrice} onChange={(e) => setEditData({ ...editData, unitPrice: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Desc. forn. %</Label>
+                <Input type="number" step="0.1" min="0" max="100" value={editData.supplierDiscountPct} onChange={(e) => setEditData({ ...editData, supplierDiscountPct: e.target.value })} placeholder="0" />
+              </div>
+              <div className="space-y-2">
+                <Label>Custo oficina</Label>
+                <Input type="number" step="0.01" value={editData.purchaseUnitPrice} onChange={(e) => setEditData({ ...editData, purchaseUnitPrice: e.target.value })} placeholder="Auto" />
               </div>
               <div className="space-y-2">
                 <Label>IVA %</Label>

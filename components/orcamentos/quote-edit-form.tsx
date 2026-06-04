@@ -14,7 +14,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { quoteSchema, type QuoteInput } from "@/lib/validations"
 import { updateQuote } from "@/app/actions/quotes"
 import { toast } from "@/hooks/use-toast"
-import { decimalToNumber } from "@/lib/utils"
 
 interface QuoteEditFormProps {
   quote: {
@@ -23,9 +22,9 @@ interface QuoteEditFormProps {
     vehicleId: string | null
     status: string
     validUntil: Date | null
-    taxRate: unknown
-    discount: unknown
-    laborHourRate: unknown
+    taxRate: number
+    discount: number
+    laborHourRate: number | null
     notes: string | null
     terms: string | null
   }
@@ -52,9 +51,9 @@ export function QuoteEditForm({ quote, customers, vehicles }: QuoteEditFormProps
       vehicleId: quote.vehicleId ?? "",
       status: quote.status as QuoteInput["status"],
       validUntil: quote.validUntil ? new Date(quote.validUntil).toISOString().split("T")[0] : "",
-      taxRate: decimalToNumber(quote.taxRate),
-      discount: decimalToNumber(quote.discount),
-      laborHourRate: quote.laborHourRate ? decimalToNumber(quote.laborHourRate) : undefined,
+      taxRate: quote.taxRate,
+      discount: quote.discount,
+      laborHourRate: quote.laborHourRate ?? undefined,
       notes: quote.notes ?? "",
       terms: quote.terms ?? "",
     },
@@ -107,10 +106,9 @@ export function QuoteEditForm({ quote, customers, vehicles }: QuoteEditFormProps
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="DRAFT">Rascunho</SelectItem>
-                  <SelectItem value="SENT">Enviado</SelectItem>
-                  <SelectItem value="APPROVED">Aprovado</SelectItem>
-                  <SelectItem value="REJECTED">Recusado</SelectItem>
-                  <SelectItem value="CONVERTED">Convertido</SelectItem>
+                  <SelectItem value="IN_PROGRESS">Em Execução</SelectItem>
+                  <SelectItem value="COMPLETED">Concluído</SelectItem>
+                  <SelectItem value="PAID">Pago</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -38,7 +38,18 @@ export default async function EditarVeiculoPage({ params }: { params: Promise<{ 
           <p className="text-sm text-muted-foreground">{vehicle.plate}</p>
         </div>
       </div>
-      <VehicleForm vehicle={vehicle} customers={customers} />
+      <VehicleForm vehicle={{
+        id: vehicle.id,
+        plate: vehicle.plate,
+        brand: vehicle.brand,
+        model: vehicle.model,
+        year: vehicle.year,
+        vin: vehicle.vin,
+        mileage: vehicle.mileage,
+        fuelType: vehicle.fuelType,
+        notes: vehicle.notes,
+        customerId: vehicle.customerId,
+      }} customers={customers} />
     </div>
   )
 }
